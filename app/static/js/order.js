@@ -158,7 +158,7 @@ function selectLocation(id, name) {
 
 function renderTableStep() {
   let cells = "";
-  for (let t = 1; t <= 30; t++) {
+  for (let t = 1; t <= 50; t++) {
     cells += `<div class="table-cell ${state.table === t ? "selected" : ""}" onclick="selectTable(${t})">${t}</div>`;
   }
   stepContainer.innerHTML = `
