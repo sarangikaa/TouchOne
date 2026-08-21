@@ -142,8 +142,8 @@ def api_create_order():
         table_number = int(data.get("table_number"))
     except (TypeError, ValueError):
         return jsonify({"error": "Please choose a table number."}), 400
-    if table_number < 1 or table_number > 30:
-        return jsonify({"error": "Table number must be between 1 and 30."}), 400
+    if table_number < 1 or table_number > 50:
+        return jsonify({"error": "Table number must be between 1 and 50."}), 400
 
     raw_items = data.get("items") or []
     if not raw_items:
