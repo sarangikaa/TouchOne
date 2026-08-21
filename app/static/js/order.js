@@ -544,16 +544,16 @@ function renderPaymentDetailStep() {
       <div class="receipt-line"><span class="k">Order total</span><span class="mono">${money(total)}</span></div>
       <div class="field" style="max-width:260px; margin-top:16px;">
         <label for="cash-amount">Amount Received</label>
-        <input type="number" step="0.01" min="0" id="cash-amount" value="${state.amountReceived}" oninput="updateCashAmount(this.value)" placeholder="0.00">
+        <input type="number" step="0.01" min="0" id="cash-amount" value="${state.amountReceived}" inputmode="decimal" oninput="updateCashAmount(this.value)" placeholder="0.00">
       </div>
       <div class="change-display">
         <div class="text-muted" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.05em;">Change Due</div>
-        <div class="amount ${change < 0 ? "negative" : ""}">${money(Math.abs(change))}</div>
-        ${change < 0 ? `<p class="text-muted" style="margin:6px 0 0 0;">Amount received is less than the total.</p>` : ""}
+        <div class="amount" id="change-amount">${money(Math.abs(change))}</div>
+        <p class="text-muted" id="change-warning" style="margin:6px 0 0 0; display:${change < 0 ? "block" : "none"};">Amount received is less than the total.</p>
       </div>
       <div class="btn-group" style="margin-top:20px;">
         <button class="btn btn-outline" onclick="goToStep(5)">← Back</button>
-        <button class="btn btn-primary" onclick="goToStep(7)" ${received < total ? "disabled" : ""}>Continue to Review →</button>
+        <button class="btn btn-primary" id="continue-payment-btn" onclick="goToStep(7)" ${received < total ? "disabled" : ""}>Continue to Review →</button>
       </div>
     `;
   }
@@ -565,8 +565,23 @@ function confirmCardPayment() {
 }
 
 function updateCashAmount(v) {
+  // Update state + the change display in place — do NOT re-render the whole
+  // step, or the input loses focus after every single keystroke/tap.
   state.amountReceived = v;
-  renderPaymentDetailStep();
+  const total = basketTotal();
+  const received = parseFloat(v || "0") || 0;
+  const change = received - total;
+
+  const amountEl = document.getElementById("change-amount");
+  const warningEl = document.getElementById("change-warning");
+  const continueBtn = document.getElementById("continue-payment-btn");
+
+  if (amountEl) {
+    amountEl.textContent = money(Math.abs(change));
+    amountEl.classList.toggle("negative", change < 0);
+  }
+  if (warningEl) warningEl.style.display = change < 0 ? "block" : "none";
+  if (continueBtn) continueBtn.disabled = received < total;
 }
 
 // ---------------------------------------------------------------------------
