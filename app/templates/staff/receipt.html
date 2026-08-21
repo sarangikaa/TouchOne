@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Receipt {{ order.order_number }}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Courier New", monospace;
+      color: #111;
+      max-width: 320px;
+      margin: 20px auto;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .center { text-align: center; }
+    .brand { font-size: 1.3rem; font-weight: 700; letter-spacing: 0.05em; }
+    .sub { font-size: 0.75rem; color: #555; margin-bottom: 10px; }
+    hr { border: none; border-top: 1px dashed #999; margin: 10px 0; }
+    .row { display: flex; justify-content: space-between; gap: 8px; }
+    .item-name { flex: 1; }
+    .item-opts { font-size: 0.72rem; color: #555; padding-left: 8px; }
+    .totals .row { font-weight: 700; font-size: 1rem; margin-top: 6px; }
+    .meta .row { font-size: 0.78rem; color: #333; }
+    .footer { margin-top: 16px; font-size: 0.75rem; }
+    .no-print { margin-top: 24px; text-align: center; }
+    .no-print button {
+      padding: 10px 22px;
+      font-size: 0.9rem;
+      border-radius: 999px;
+      border: none;
+      background: #3c2a1e;
+      color: #f5f0e6;
+      cursor: pointer;
+    }
+    @media print {
+      .no-print { display: none; }
+      body { margin: 0; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="center">
+    <div class="brand">☕ TouchOne</div>
+    <div class="sub">Order &amp; Sales Management</div>
+  </div>
+  <hr>
+
+  <div class="meta">
+    <div class="row"><span>Order</span><span>{{ order.order_number }}</span></div>
+    <div class="row"><span>Date</span><span>{{ order.created_at.strftime('%d %b %Y') }}</span></div>
+    <div class="row"><span>Time</span><span>{{ order.created_at.strftime('%H:%M') }}</span></div>
+    <div class="row"><span>Location</span><span>{{ order.location.name }}</span></div>
+    <div class="row"><span>Table</span><span>{{ order.table_number }}</span></div>
+    <div class="row"><span>Served by</span><span>{{ order.staff.name }}</span></div>
+    {% if order.member %}
+    <div class="row"><span>Member</span><span>{{ order.member.member_number }}</span></div>
+    {% endif %}
+  </div>
+  <hr>
+
+  {% for item in order.items %}
+  <div class="row">
+    <span class="item-name">{{ item.item_name }}{% if item.quantity > 1 %} x{{ item.quantity }}{% endif %}</span>
+    <span>£{{ '%.2f'|format(item.total_price) }}</span>
+  </div>
+  {% for opt in item.options_list() %}
+  <div class="item-opts">+ {{ opt.name }}</div>
+  {% endfor %}
+  {% endfor %}
+  <hr>
+
+  <div class="totals">
+    <div class="row"><span>TOTAL</span><span>£{{ '%.2f'|format(order.total) }}</span></div>
+  </div>
+  <hr>
+
+  <div class="meta">
+    <div class="row"><span>Payment</span><span>{{ order.payment_method }}</span></div>
+    {% if order.payment_method == 'Cash' %}
+    <div class="row"><span>Received</span><span>£{{ '%.2f'|format(order.amount_received) }}</span></div>
+    <div class="row"><span>Change</span><span>£{{ '%.2f'|format(order.change_due) }}</span></div>
+    {% else %}
+    <div class="row"><span>Status</span><span>{{ order.payment_status }}</span></div>
+    {% endif %}
+  </div>
+
+  {% if order.allergy_status and order.allergen_list() %}
+  <hr>
+  <div class="center" style="font-weight:700;">⚠ ALLERGENS DECLARED</div>
+  <div class="center">{{ order.allergen_list()|join(', ') }}</div>
+  {% endif %}
+
+  <hr>
+  <div class="center footer">Thank you — see you again soon!</div>
+
+  <div class="no-print">
+    <button onclick="window.print()">Print Receipt</button>
+  </div>
+
+  <script>
+    // Auto-open the print dialog as soon as the receipt loads
+    window.onload = function () {
+      window.print();
+    };
+  </script>
+</body>
+</html>
