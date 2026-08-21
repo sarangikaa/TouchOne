@@ -8,8 +8,16 @@ from app.models import (
 )
 
 HOT_DRINKS = [
-    ("Americano", 2.60), ("Cappuccino", 3.10), ("Latte", 3.10),
-    ("Hot Chocolate", 3.30), ("Mocha", 3.40), ("Iced Latte", 3.40),
+    ("Babyccino", 1.20), ("Spiced Chai", 3.40), ("Matcha", 3.50),
+    ("Americano", 2.60), ("Cappuccino", 3.10), ("Flat White", 3.20),
+    ("Latte", 3.10), ("Single Espresso", 2.20), ("Double Espresso", 2.80),
+    ("Cortado", 2.90), ("Single Macchiato", 2.60), ("Double Macchiato", 3.00),
+    ("Hot Chocolate", 3.30), ("Cafe Mocha", 3.40),
+    ("Cup of Tea", 2.20), ("Cup of Herbal Tea", 2.40),
+]
+
+COLD_DRINKS = [
+    ("Peach Iced Tea", 3.30), ("Iced Latte", 3.40), ("Iced Americano", 3.00),
 ]
 
 FILLINGS = [
@@ -32,9 +40,9 @@ SANDWICH_EXTRAS = [
 ]
 
 DRINK_OPTIONS = [
-    ("Milk", 0.00), ("Oat Milk", 0.50), ("Skimmed Milk", 0.00),
-    ("Soya Milk", 0.50), ("Coconut Milk", 0.50), ("Chocolate", 0.40),
-    ("Extra Hot", 0.00), ("Own Cup", -0.25),
+    ("Whole Milk", 0.00), ("Extra Shot Coffee", 0.60), ("Skinny Milk", 0.00),
+    ("Soy Milk", 0.50), ("Oat Milk", 0.50), ("Coconut Milk", 0.50),
+    ("Decaf", 0.00), ("Chocolate", 0.40),
 ]
 
 LOCATIONS = ["Garden Room", "Terrace Main", "Terrace Side"]
@@ -49,6 +57,8 @@ def seed_if_empty():
 
     for name, price in HOT_DRINKS:
         db.session.add(MenuItem(name=name, category="Hot Drinks", price=price, active=True))
+    for name, price in COLD_DRINKS:
+        db.session.add(MenuItem(name=name, category="Drinks", price=price, active=True))
     for name, price in FILLINGS:
         db.session.add(MenuItem(name=name, category="Fillings", price=price, active=True))
     for name, price in BREAD:
@@ -83,7 +93,7 @@ def _seed_demo_orders(manager, staff, member):
     latte = MenuItem.query.filter_by(name="Latte").first()
     salmon = MenuItem.query.filter_by(name="Smoked Salmon").first()
     ham = MenuItem.query.filter_by(name="Ham and Cheese").first()
-    mocha = MenuItem.query.filter_by(name="Mocha").first()
+    mocha = MenuItem.query.filter_by(name="Cafe Mocha").first()
 
     demo_orders = [
         (americano, "drink", 1, [], "Card", "Confirmed", locations[0], 14, False),
