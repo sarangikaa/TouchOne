@@ -42,14 +42,6 @@
       </div>
       <button type="submit" class="btn btn-primary btn-block">Log In as {{ 'Manager' if role == 'manager' else 'Staff' }}</button>
     </form>
-
-    <div class="demo-hint">
-      {% if role == 'manager' %}
-        Demo manager login — Username: Manager#1 · Password: password123
-      {% else %}
-        Demo staff login — Username: staff1 · Password: staffpass123
-      {% endif %}
-    </div>
   </div>
 </div>
 </body>
