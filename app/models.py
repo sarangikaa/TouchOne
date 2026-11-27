@@ -47,7 +47,6 @@ class User(db.Model, UserMixin):
         return check_password_hash(self.password_hash, password)
 
     def get_id(self):
-        # Namespaced id so Flask-Login can distinguish User vs Member sessions
         return f"user:{self.id}"
 
     @property
@@ -55,8 +54,9 @@ class User(db.Model, UserMixin):
         return self.role == "manager"
 
 
-class Member(db.Model, UserMixin):
-    """Loyalty / member accounts. Created by managers, or by staff from the order screen."""
+class Member(db.Model):
+    """Loyalty customers. They don't log in — staff attach them to orders by
+    member number, name or phone, and they collect / spend points."""
     __tablename__ = "members"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -64,23 +64,13 @@ class Member(db.Model, UserMixin):
     name = db.Column(db.String(120), nullable=False)
     phone = db.Column(db.String(30), nullable=True, index=True)
     points = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    # Old login columns — no longer used, kept so existing databases still load
     username = db.Column(db.String(64), unique=True, nullable=True)
     password_hash = db.Column(db.String(255), nullable=True)
     active = db.Column(db.Boolean, default=True, nullable=False)
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     orders = db.relationship("Order", backref="member", lazy=True)
-
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        if not self.password_hash:
-            return False
-        return check_password_hash(self.password_hash, password)
-
-    def get_id(self):
-        return f"member:{self.id}"
 
 
 class Location(db.Model):
