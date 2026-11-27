@@ -1,7 +1,3 @@
-"""
-Basic integration tests for the coffee shop app.
-Run with: pytest tests/
-"""
 import json
 import pytest
 
@@ -177,3 +173,117 @@ def test_manager_location_management(client):
     r = client.post("/manager/locations/add", data={"name": "Rooftop"}, follow_redirects=True)
     assert r.status_code == 200
     assert b"Rooftop" in r.data
+
+
+# ---------------------------------------------------------------------------
+# Members created from the order screen + loyalty points
+# ---------------------------------------------------------------------------
+
+import math
+
+
+def _create_member(client, first="Ana", surname="Petrosyan", phone="+374 91 123456"):
+    return client.post(
+        "/staff/api/members",
+        data=json.dumps({"first_name": first, "surname": surname, "phone": phone}),
+        content_type="application/json",
+    )
+
+
+def _drink_order(client, menu, member_id=None, payment_method="Card", **extra):
+    americano = next(d for d in menu["hot_drinks"] if d["name"] == "Americano")
+    payload = {
+        "location_id": menu["locations"][0]["id"],
+        "table_number": 9,
+        "member_id": member_id,
+        "payment_method": payment_method,
+        "payment_confirmed": True,
+        "items": [{"type": "drink", "menu_item_id": americano["id"], "option_ids": [], "quantity": 3}],
+    }
+    payload.update(extra)
+    return client.post("/staff/api/orders", data=json.dumps(payload), content_type="application/json")
+
+
+def test_staff_can_create_member_with_auto_number(client):
+    login(client, "staff", "staff1", "staffpass123")
+    r = _create_member(client)
+    assert r.status_code == 201
+    member = r.get_json()["member"]
+    assert member["member_number"] == "#1002"  # seed member is #1001
+    assert member["name"] == "Ana Petrosyan"
+    assert member["phone"] == "+37491123456"
+    assert member["points"] == 0
+
+    # Searchable by phone straight away
+    results = client.get("/staff/api/members/search?q=91123456").get_json()["results"]
+    assert any(m["id"] == member["id"] for m in results)
+
+
+def test_create_member_validation(client):
+    login(client, "staff", "staff1", "staffpass123")
+    assert _create_member(client, first="").status_code == 400
+    assert _create_member(client, phone="12").status_code == 400
+    assert _create_member(client).status_code == 201
+    dup = _create_member(client, first="Other", phone="+37491123456")
+    assert dup.status_code == 409
+    assert dup.get_json()["existing"]["member_number"] == "#1002"
+
+
+def test_member_earns_points_on_card_order(client):
+    login(client, "staff", "staff1", "staffpass123")
+    menu = client.get("/staff/api/menu").get_json()
+    member = _create_member(client).get_json()["member"]
+    data = _drink_order(client, menu, member_id=member["id"]).get_json()
+    assert data["points_earned"] == math.floor(data["total"])
+    assert data["member_points"] == data["points_earned"]
+
+
+def test_pay_with_member_points(client):
+    login(client, "staff", "staff1", "staffpass123")
+    menu = client.get("/staff/api/menu").get_json()
+    member = client.get("/staff/api/members/search?q=1001").get_json()["results"][0]
+    member_id, before = member["id"], member["points"]
+    americano = next(d for d in menu["hot_drinks"] if d["name"] == "Americano")
+    needed = math.ceil(round(americano["price"] * 100) / 10)  # 1 point = £0.10
+
+    payload = {
+        "location_id": menu["locations"][0]["id"],
+        "table_number": 10,
+        "member_id": member_id,
+        "payment_method": "Member Points",
+        "items": [{"type": "drink", "menu_item_id": americano["id"], "option_ids": [], "quantity": 1}],
+    }
+    r = client.post("/staff/api/orders", data=json.dumps(payload), content_type="application/json")
+    assert r.status_code == 200, r.get_json()
+    data = r.get_json()
+    assert data["points_redeemed"] == needed
+    assert data["points_earned"] == 0
+    assert data["member_points"] == before - needed
+
+
+def test_member_points_rejected_when_balance_too_low(client):
+    login(client, "staff", "staff1", "staffpass123")
+    menu = client.get("/staff/api/menu").get_json()
+    member = _create_member(client).get_json()["member"]  # 0 points
+    r = _drink_order(client, menu, member_id=member["id"], payment_method="Member Points")
+    assert r.status_code == 400
+    assert "Not enough points" in r.get_json()["error"]
+
+
+def test_member_points_requires_member(client):
+    login(client, "staff", "staff1", "staffpass123")
+    menu = client.get("/staff/api/menu").get_json()
+    r = _drink_order(client, menu, payment_method="Member Points")
+    assert r.status_code == 400
+
+
+def test_cancelling_order_reverses_points(client):
+    login(client, "staff", "staff1", "staffpass123")
+    menu = client.get("/staff/api/menu").get_json()
+    member = _create_member(client).get_json()["member"]
+    data = _drink_order(client, menu, member_id=member["id"]).get_json()
+    assert data["member_points"] > 0
+
+    client.post(f"/staff/orders/{data['order_id']}/status", data={"status": "Cancelled"})
+    after = client.get("/staff/api/members/search?q=" + member["member_number"].lstrip("#")).get_json()["results"][0]
+    assert after["points"] == 0
