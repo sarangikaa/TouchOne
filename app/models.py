@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from decimal import Decimal
 
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -16,7 +17,13 @@ MENU_CATEGORIES = [
 ]
 
 ORDER_STATUSES = ["Pending", "Preparing", "Confirmed", "Delivered", "Cancelled"]
-PAYMENT_METHODS = ["Card", "Cash", "Member Card"]
+PAYMENT_METHODS = ["Card", "Cash", "Member Points"]
+
+# Loyalty points rules — change these to tune the scheme.
+# Members earn POINTS_PER_POUND points for every whole £1 spent by card or cash,
+# and each point is worth POINT_VALUE when paying with points.
+POINTS_PER_POUND = 1
+POINT_VALUE = Decimal("0.10")
 
 
 class User(db.Model, UserMixin):
@@ -49,12 +56,14 @@ class User(db.Model, UserMixin):
 
 
 class Member(db.Model, UserMixin):
-    """Loyalty / member accounts. Created only by managers."""
+    """Loyalty / member accounts. Created by managers, or by staff from the order screen."""
     __tablename__ = "members"
 
     id = db.Column(db.Integer, primary_key=True)
     member_number = db.Column(db.String(20), unique=True, nullable=False, index=True)
     name = db.Column(db.String(120), nullable=False)
+    phone = db.Column(db.String(30), nullable=True, index=True)
+    points = db.Column(db.Integer, nullable=False, default=0, server_default="0")
     username = db.Column(db.String(64), unique=True, nullable=True)
     password_hash = db.Column(db.String(255), nullable=True)
     active = db.Column(db.Boolean, default=True, nullable=False)
@@ -125,6 +134,9 @@ class Order(db.Model):
     total = db.Column(db.Numeric(8, 2), nullable=False, default=0)
     amount_received = db.Column(db.Numeric(8, 2), nullable=True)
     change_due = db.Column(db.Numeric(8, 2), nullable=True)
+
+    points_earned = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    points_redeemed = db.Column(db.Integer, nullable=False, default=0, server_default="0")
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
