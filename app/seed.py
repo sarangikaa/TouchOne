@@ -76,8 +76,7 @@ def seed_if_empty():
     staff.set_password("staffpass123")
     db.session.add(staff)
 
-    member = Member(member_number="#1001", name="Demo Member", phone="+447700900001", points=50, username="demo.member", active=True)
-    member.set_password("memberpass123")
+    member = Member(member_number="#1001", name="Demo Member", phone="+447700900001", points=50, active=True)
     db.session.add(member)
 
     db.session.commit()
