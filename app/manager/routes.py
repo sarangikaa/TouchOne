@@ -17,6 +17,9 @@ from app.sales_utils import resolve_range, sales_summary, day_bounds
 
 manager_bp = Blueprint("manager", __name__, url_prefix="/manager")
 
+# Orders that are still in progress (not delivered or cancelled yet)
+CURRENT_STATUSES = ["Pending", "Preparing", "Confirmed"]
+
 
 # ---------------------------------------------------------------------------
 # Dashboard
@@ -36,6 +39,14 @@ def dashboard():
 
     products_sorted = sorted(summary["product_totals"].items(), key=lambda kv: kv[1]["qty"], reverse=True)[:8]
     locations_sorted = sorted(summary["location_totals"].items(), key=lambda kv: kv[1]["total"], reverse=True)
+    staff_sorted = sorted(summary["staff_totals"].items(), key=lambda kv: kv[1]["total"], reverse=True)
+
+    current_orders = (
+        Order.query.filter(Order.order_status.in_(CURRENT_STATUSES))
+        .order_by(Order.created_at.desc())
+        .limit(20)
+        .all()
+    )
 
     return render_template(
         "manager/dashboard.html",
@@ -44,6 +55,8 @@ def dashboard():
         member_total=member_total,
         products=products_sorted,
         locations=locations_sorted,
+        staff_totals=staff_sorted,
+        current_orders=current_orders,
     )
 
 
@@ -140,10 +153,11 @@ def export_csv():
     writer.writerow(["Total Orders", summary["order_count"]])
     writer.writerow(["Average Order Value", f"{summary['avg_order']:.2f}"])
     writer.writerow([])
-    writer.writerow(["Order #", "Member", "Date/Time", "Location", "Table", "Payment", "Status", "Total"])
+    writer.writerow(["Order #", "Staff", "Member", "Date/Time", "Location", "Table", "Payment", "Status", "Total"])
     for o in summary["orders"]:
         writer.writerow([
             o.order_number,
+            o.staff.name if o.staff else "",
             o.member.member_number if o.member else "",
             o.created_at.strftime("%Y-%m-%d %H:%M"),
             o.location.name,
@@ -185,10 +199,11 @@ def export_xlsx():
     ws.append(["Total Orders", summary["order_count"]])
     ws.append(["Average Order Value", float(summary["avg_order"])])
     ws.append([])
-    ws.append(["Order #", "Member", "Date/Time", "Location", "Table", "Payment", "Status", "Total"])
+    ws.append(["Order #", "Staff", "Member", "Date/Time", "Location", "Table", "Payment", "Status", "Total"])
     for o in summary["orders"]:
         ws.append([
             o.order_number,
+            o.staff.name if o.staff else "",
             o.member.member_number if o.member else "",
             o.created_at.strftime("%Y-%m-%d %H:%M"),
             o.location.name,
@@ -217,24 +232,44 @@ def export_xlsx():
 @login_required
 @role_required("manager")
 def orders():
-    status_filter = request.args.get("status", "All")
+    status_filter = request.args.get("status", "Current")
+    if status_filter == "Pending":  # old name for the Current tab
+        status_filter = "Current"
     q = request.args.get("q", "").strip()
+    staff_filter = request.args.get("staff", type=int)
 
     query = Order.query
-    if status_filter == "Pending":
-        query = query.filter(Order.order_status.in_(["Pending", "Preparing", "Confirmed"]))
+    if status_filter == "Current":
+        query = query.filter(Order.order_status.in_(CURRENT_STATUSES))
     elif status_filter == "Completed":
         query = query.filter(Order.order_status == "Delivered")
     elif status_filter == "Cancelled":
         query = query.filter(Order.order_status == "Cancelled")
+    else:
+        status_filter = "All"
+
+    if staff_filter:
+        query = query.filter(Order.staff_id == staff_filter)
 
     if q:
-        query = query.join(Member, isouter=True).filter(
-            db.or_(Order.order_number.ilike(f"%{q}%"), Member.member_number.ilike(f"%{q}%"))
+        query = query.join(User, Order.staff_id == User.id).outerjoin(Member, Order.member_id == Member.id).filter(
+            db.or_(
+                Order.order_number.ilike(f"%{q}%"),
+                Member.member_number.ilike(f"%{q}%"),
+                User.name.ilike(f"%{q}%"),
+            )
         )
 
     order_list = query.order_by(Order.created_at.desc()).limit(200).all()
-    return render_template("manager/orders.html", orders=order_list, status_filter=status_filter, q=q)
+    staff_list = User.query.order_by(User.name).all()
+    return render_template(
+        "manager/orders.html",
+        orders=order_list,
+        status_filter=status_filter,
+        q=q,
+        staff_filter=staff_filter,
+        staff_list=staff_list,
+    )
 
 
 @manager_bp.route("/orders/<int:order_id>")
@@ -267,34 +302,27 @@ def members():
 @login_required
 @role_required("manager")
 def member_create():
-    member_number = request.form.get("member_number", "").strip() or next_member_number()
-    name = request.form.get("name", "").strip()
+    """Members are loyalty customers only — they have no login, just a number and points."""
+    first_name = request.form.get("first_name", "").strip()
+    surname = request.form.get("surname", "").strip()
     phone = normalise_phone(request.form.get("phone"))
-    username = request.form.get("username", "").strip()
-    password = request.form.get("password", "")
-    confirm = request.form.get("confirm_password", "")
 
-    if not all([member_number, name, username, password]):
-        flash("All fields are required to create a member.", "error")
+    if not first_name or not surname:
+        flash("Please enter the member's name and surname.", "error")
         return redirect(url_for("manager.members"))
-    if password != confirm:
-        flash("Passwords do not match.", "error")
+    if len(phone.lstrip("+")) < 6:
+        flash("Please enter a valid phone number.", "error")
         return redirect(url_for("manager.members"))
-    if Member.query.filter_by(member_number=member_number).first():
-        flash("That member number is already in use.", "error")
-        return redirect(url_for("manager.members"))
-    if Member.query.filter_by(username=username).first():
-        flash("That username is already in use.", "error")
-        return redirect(url_for("manager.members"))
-    if phone and Member.query.filter_by(phone=phone).first():
-        flash("That phone number already belongs to another member.", "error")
+    existing = Member.query.filter_by(phone=phone).first()
+    if existing:
+        flash(f"That phone number already belongs to member {existing.member_number} ({existing.name}).", "error")
         return redirect(url_for("manager.members"))
 
-    member = Member(member_number=member_number, name=name, phone=phone or None, username=username, active=True)
-    member.set_password(password)
+    member_number = next_member_number()
+    member = Member(member_number=member_number, name=f"{first_name} {surname}", phone=phone, points=0, active=True)
     db.session.add(member)
     db.session.commit()
-    flash(f"Member {member_number} created.", "success")
+    flash(f"Member {member_number} created for {member.name}.", "success")
     return redirect(url_for("manager.members"))
 
 
@@ -317,19 +345,94 @@ def member_toggle(member_id):
     return jsonify({"ok": True, "active": member.active})
 
 
-@manager_bp.route("/members/<int:member_id>/reset-password", methods=["POST"])
+# ---------------------------------------------------------------------------
+# Staff accounts (the people who log in and take orders)
+# ---------------------------------------------------------------------------
+
+@manager_bp.route("/staff")
 @login_required
 @role_required("manager")
-def member_reset_password(member_id):
-    member = Member.query.get_or_404(member_id)
-    new_password = request.form.get("password", "")
-    if not new_password or len(new_password) < 6:
-        flash("New password must be at least 6 characters.", "error")
-        return redirect(url_for("manager.members"))
-    member.set_password(new_password)
+def staff_list():
+    today = datetime.utcnow().date()
+    s, e = day_bounds(today)
+
+    users = User.query.order_by(User.role.desc(), User.name).all()
+    rows = []
+    for u in users:
+        total_orders = Order.query.filter_by(staff_id=u.id).count()
+        today_orders = Order.query.filter(
+            Order.staff_id == u.id, Order.created_at >= s, Order.created_at <= e,
+            Order.order_status != "Cancelled",
+        ).all()
+        current = Order.query.filter(Order.staff_id == u.id, Order.order_status.in_(CURRENT_STATUSES)).count()
+        rows.append({
+            "user": u,
+            "total_orders": total_orders,
+            "today_orders": len(today_orders),
+            "today_sales": sum((o.total for o in today_orders), Decimal("0.00")),
+            "current_orders": current,
+        })
+    return render_template("manager/staff.html", rows=rows)
+
+
+@manager_bp.route("/staff/create", methods=["POST"])
+@login_required
+@role_required("manager")
+def staff_create():
+    name = request.form.get("name", "").strip()
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "")
+    confirm = request.form.get("confirm_password", "")
+    role = request.form.get("role", "staff")
+    if role not in ("staff", "manager"):
+        role = "staff"
+
+    if not all([name, username, password]):
+        flash("Name, username and password are required.", "error")
+        return redirect(url_for("manager.staff_list"))
+    if len(password) < 6:
+        flash("Password must be at least 6 characters.", "error")
+        return redirect(url_for("manager.staff_list"))
+    if password != confirm:
+        flash("Passwords do not match.", "error")
+        return redirect(url_for("manager.staff_list"))
+    if User.query.filter_by(username=username).first():
+        flash("That username is already in use.", "error")
+        return redirect(url_for("manager.staff_list"))
+
+    user = User(name=name, username=username, role=role, active=True)
+    user.set_password(password)
+    db.session.add(user)
     db.session.commit()
-    flash(f"Password reset for {member.member_number}.", "success")
-    return redirect(url_for("manager.members"))
+    flash(f"{'Manager' if role == 'manager' else 'Staff'} account created for {name}.", "success")
+    return redirect(url_for("manager.staff_list"))
+
+
+@manager_bp.route("/staff/<int:user_id>/toggle", methods=["POST"])
+@login_required
+@role_required("manager")
+def staff_toggle(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        return jsonify({"ok": False, "error": "You can't disable your own account."}), 400
+    user.active = not user.active
+    db.session.commit()
+    return jsonify({"ok": True, "active": user.active})
+
+
+@manager_bp.route("/staff/<int:user_id>/reset-password", methods=["POST"])
+@login_required
+@role_required("manager")
+def staff_reset_password(user_id):
+    user = User.query.get_or_404(user_id)
+    new_password = request.form.get("password", "")
+    if len(new_password) < 6:
+        flash("New password must be at least 6 characters.", "error")
+        return redirect(url_for("manager.staff_list"))
+    user.set_password(new_password)
+    db.session.commit()
+    flash(f"Password reset for {user.name}.", "success")
+    return redirect(url_for("manager.staff_list"))
 
 
 # ---------------------------------------------------------------------------
