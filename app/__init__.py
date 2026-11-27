@@ -30,8 +30,9 @@ def create_app(config_object="config.Config"):
 
     @login_manager.user_loader
     def load_user(user_id):
-        # ids are namespaced as "user:<id>" or "member:<id>"
-        from app.models import User, Member
+        # Only staff and managers can log in. Members are loyalty customers
+        # with no login, so any old "member:<id>" session is ignored.
+        from app.models import User
 
         try:
             kind, raw_id = user_id.split(":")
@@ -39,8 +40,6 @@ def create_app(config_object="config.Config"):
             return None
         if kind == "user":
             return User.query.get(int(raw_id))
-        if kind == "member":
-            return Member.query.get(int(raw_id))
         return None
 
     @app.context_processor
