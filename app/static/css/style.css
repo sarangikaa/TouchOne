@@ -583,7 +583,7 @@ table.data-table tr.clickable { cursor: pointer; }
 .receipt-line .k { color: var(--text-muted); }
 
 /* Payment tiles */
-.pay-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }
+.pay-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 20px 0; }
 .pay-tile {
   padding: 34px 20px;
   text-align: center;
@@ -596,6 +596,7 @@ table.data-table tr.clickable { cursor: pointer; }
   color: var(--coffee-dark);
 }
 .pay-tile:hover { border-color: var(--green); }
+.pay-tile.selected { border-color: var(--green); background: #edf3ee; }
 
 .change-display {
   margin-top: 18px;
