@@ -50,7 +50,34 @@ def create_app(config_object="config.Config"):
 
     with app.app_context():
         db.create_all()
+        _add_missing_columns()
         from app.seed import seed_if_empty
         seed_if_empty()
 
     return app
+
+
+# Columns added after the first release. db.create_all() only creates missing
+# tables, so existing databases get these columns added here.
+_NEW_COLUMNS = {
+    "members": {
+        "phone": "VARCHAR(30)",
+        "points": "INTEGER NOT NULL DEFAULT 0",
+    },
+    "orders": {
+        "points_earned": "INTEGER NOT NULL DEFAULT 0",
+        "points_redeemed": "INTEGER NOT NULL DEFAULT 0",
+    },
+}
+
+
+def _add_missing_columns():
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(db.engine)
+    with db.engine.begin() as conn:
+        for table, columns in _NEW_COLUMNS.items():
+            existing = {c["name"] for c in inspector.get_columns(table)}
+            for name, ddl in columns.items():
+                if name not in existing:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
