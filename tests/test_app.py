@@ -1,3 +1,7 @@
+"""
+Basic integration tests for the coffee shop app.
+Run with: pytest tests/
+"""
 import json
 import pytest
 
@@ -175,9 +179,9 @@ def test_manager_location_management(client):
     assert b"Rooftop" in r.data
 
 
-# ---------------------------------------------------------------------------
-# Members created from the order screen + loyalty points
-# ---------------------------------------------------------------------------
+# ----------------
+# Members created
+# ---------------
 
 import math
 
@@ -287,3 +291,44 @@ def test_cancelling_order_reverses_points(client):
     client.post(f"/staff/orders/{data['order_id']}/status", data={"status": "Cancelled"})
     after = client.get("/staff/api/members/search?q=" + member["member_number"].lstrip("#")).get_json()["results"][0]
     assert after["points"] == 0
+
+
+# -------------------
+# Manager portal
+# -------------------
+
+def test_manager_sees_orders_taken_by_staff(client):
+    login(client, "staff", "staff1", "staffpass123")
+    menu = client.get("/staff/api/menu").get_json()
+    order = _drink_order(client, menu).get_json()
+    client.get("/logout")
+
+    login(client, "manager", "Manager#1", "password123")
+    r = client.get("/manager/orders")  # defaults to the Current tab
+    assert order["order_number"].encode() in r.data
+    assert b"Alex Staff" in r.data
+
+    dash = client.get("/manager/dashboard")
+    assert order["order_number"].encode() in dash.data
+
+
+def test_manager_can_create_staff_who_can_then_log_in(client):
+    login(client, "manager", "Manager#1", "password123")
+    r = client.post("/manager/staff/create", data={
+        "name": "Mariam Staff", "username": "mariam", "password": "secret123",
+        "confirm_password": "secret123", "role": "staff",
+    }, follow_redirects=True)
+    assert b"Mariam Staff" in r.data
+    client.get("/logout")
+
+    r = login(client, "staff", "mariam", "secret123")
+    assert b"My Orders" in r.data
+
+
+def test_manager_creates_member_without_login(client):
+    login(client, "manager", "Manager#1", "password123")
+    r = client.post("/manager/members/create", data={
+        "first_name": "Aram", "surname": "Sargsyan", "phone": "+374 99 000111",
+    }, follow_redirects=True)
+    assert b"Aram Sargsyan" in r.data
+    assert b"#1002" in r.data
