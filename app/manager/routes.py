@@ -12,7 +12,7 @@ from app import db
 from app.models import (
     Order, OrderItem, Location, MenuItem, DrinkOption, User, Member, MENU_CATEGORIES
 )
-from app.utils import role_required
+from app.utils import role_required, next_member_number, normalise_phone
 from app.sales_utils import resolve_range, sales_summary, day_bounds
 
 manager_bp = Blueprint("manager", __name__, url_prefix="/manager")
@@ -31,7 +31,8 @@ def dashboard():
     summary = sales_summary(s, e)
 
     card_total = summary["payment_totals"].get("Card", Decimal("0.00")) + summary["payment_totals"].get("Card (Simulated)", Decimal("0.00"))
-    member_total = summary["payment_totals"].get("Member Card", Decimal("0.00"))
+    # "Member Card" is the old name for member payments — kept so older orders still count
+    member_total = summary["payment_totals"].get("Member Points", Decimal("0.00")) + summary["payment_totals"].get("Member Card", Decimal("0.00"))
 
     products_sorted = sorted(summary["product_totals"].items(), key=lambda kv: kv[1]["qty"], reverse=True)[:8]
     locations_sorted = sorted(summary["location_totals"].items(), key=lambda kv: kv[1]["total"], reverse=True)
@@ -255,7 +256,9 @@ def members():
     q = request.args.get("q", "").strip()
     query = Member.query
     if q:
-        query = query.filter(db.or_(Member.member_number.ilike(f"%{q}%"), Member.name.ilike(f"%{q}%")))
+        query = query.filter(db.or_(
+            Member.member_number.ilike(f"%{q}%"), Member.name.ilike(f"%{q}%"), Member.phone.ilike(f"%{q}%")
+        ))
     member_list = query.order_by(Member.joined_at.desc()).all()
     return render_template("manager/members.html", members=member_list, q=q)
 
@@ -264,8 +267,9 @@ def members():
 @login_required
 @role_required("manager")
 def member_create():
-    member_number = request.form.get("member_number", "").strip()
+    member_number = request.form.get("member_number", "").strip() or next_member_number()
     name = request.form.get("name", "").strip()
+    phone = normalise_phone(request.form.get("phone"))
     username = request.form.get("username", "").strip()
     password = request.form.get("password", "")
     confirm = request.form.get("confirm_password", "")
@@ -282,8 +286,11 @@ def member_create():
     if Member.query.filter_by(username=username).first():
         flash("That username is already in use.", "error")
         return redirect(url_for("manager.members"))
+    if phone and Member.query.filter_by(phone=phone).first():
+        flash("That phone number already belongs to another member.", "error")
+        return redirect(url_for("manager.members"))
 
-    member = Member(member_number=member_number, name=name, username=username, active=True)
+    member = Member(member_number=member_number, name=name, phone=phone or None, username=username, active=True)
     member.set_password(password)
     db.session.add(member)
     db.session.commit()
