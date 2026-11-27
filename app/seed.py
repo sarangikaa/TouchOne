@@ -76,7 +76,7 @@ def seed_if_empty():
     staff.set_password("staffpass123")
     db.session.add(staff)
 
-    member = Member(member_number="#1001", name="Demo Member", username="demo.member", active=True)
+    member = Member(member_number="#1001", name="Demo Member", phone="+447700900001", points=50, username="demo.member", active=True)
     member.set_password("memberpass123")
     db.session.add(member)
 
@@ -98,7 +98,7 @@ def _seed_demo_orders(manager, staff, member):
     demo_orders = [
         (americano, "drink", 1, [], "Card", "Confirmed", locations[0], 14, False),
         (cappuccino, "drink", 1, [{"name": "Oat Milk", "price": 0.5}], "Cash", "Delivered", locations[1], 5, False),
-        (latte, "drink", 1, [], "Member Card", "Delivered", locations[1], 8, True),
+        (latte, "drink", 1, [], "Member Points", "Delivered", locations[1], 8, True),
         (salmon, "sandwich", 1, [{"name": "Brown", "price": 0.0}], "Card", "Delivered", locations[0], 2, True),
         (ham, "sandwich", 1, [{"name": "White", "price": 0.0}], "Cash", "Preparing", locations[2], 19, False),
         (mocha, "drink", 1, [{"name": "Chocolate", "price": 0.4}], "Card", "Cancelled", locations[2], 27, False),
