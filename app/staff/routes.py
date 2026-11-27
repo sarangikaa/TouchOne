@@ -7,9 +7,12 @@ from flask_login import login_required, current_user
 from app import db
 from app.models import (
     Location, MenuItem, DrinkOption, Order, OrderItem, Member,
-    ALLERGEN_OPTIONS, ORDER_STATUSES,
+    ALLERGEN_OPTIONS, ORDER_STATUSES, PAYMENT_METHODS, POINTS_PER_POUND, POINT_VALUE,
 )
-from app.utils import role_required, next_order_number
+from app.utils import (
+    role_required, next_order_number, next_member_number, normalise_phone,
+    points_earned_for, points_needed_for,
+)
 
 staff_bp = Blueprint("staff", __name__, url_prefix="/staff")
 
@@ -42,7 +45,11 @@ def dashboard():
 @login_required
 @role_required("staff", "manager")
 def new_order():
-    return render_template("staff/new_order.html")
+    return render_template(
+        "staff/new_order.html",
+        points_per_pound=POINTS_PER_POUND,
+        point_value=float(POINT_VALUE),
+    )
 
 
 @staff_bp.route("/orders/<int:order_id>")
@@ -69,6 +76,13 @@ def update_status(order_id):
     status = request.form.get("status")
     if status not in ORDER_STATUSES:
         abort(400)
+    previous = order.order_status
+    if order.member and previous != status:
+        if status == "Cancelled":
+            # Give back points spent on this order and take back points earned
+            _apply_order_points(order, reverse=True)
+        elif previous == "Cancelled":
+            _apply_order_points(order, reverse=False)
     order.order_status = status
     if status == "Cancelled":
         order.payment_status = "Cancelled"
@@ -82,6 +96,23 @@ def update_status(order_id):
 
 def _decimal_to_float(value):
     return float(value) if isinstance(value, Decimal) else value
+
+
+def _apply_order_points(order, reverse):
+    """Apply (or undo, when reverse=True) an order's points against its member."""
+    sign = -1 if reverse else 1
+    member = order.member
+    member.points = max(0, member.points + sign * ((order.points_earned or 0) - (order.points_redeemed or 0)))
+
+
+def _member_json(m):
+    return {
+        "id": m.id,
+        "member_number": m.member_number,
+        "name": m.name,
+        "phone": m.phone or "",
+        "points": m.points or 0,
+    }
 
 
 @staff_bp.route("/api/menu")
@@ -121,11 +152,49 @@ def api_members_search():
     q = request.args.get("q", "").strip()
     if not q:
         return jsonify({"results": []})
+    filters = [Member.member_number.ilike(f"%{q}%"), Member.name.ilike(f"%{q}%")]
+    phone_q = normalise_phone(q).lstrip("+")
+    if len(phone_q) >= 3:
+        filters.append(Member.phone.ilike(f"%{phone_q}%"))
     rows = Member.query.filter(
         Member.active == True,  # noqa: E712
-        db.or_(Member.member_number.ilike(f"%{q}%"), Member.name.ilike(f"%{q}%")),
+        db.or_(*filters),
     ).limit(10).all()
-    return jsonify({"results": [{"id": m.id, "member_number": m.member_number, "name": m.name} for m in rows]})
+    return jsonify({"results": [_member_json(m) for m in rows]})
+
+
+@staff_bp.route("/api/members", methods=["POST"])
+@login_required
+@role_required("staff", "manager")
+def api_create_member():
+    """Quick member sign-up from the order screen: name, surname and phone."""
+    data = request.get_json(force=True, silent=True) or {}
+    first_name = (data.get("first_name") or "").strip()
+    surname = (data.get("surname") or "").strip()
+    phone = normalise_phone(data.get("phone"))
+
+    if not first_name or not surname:
+        return jsonify({"error": "Please enter the member's name and surname."}), 400
+    if len(phone.lstrip("+")) < 6:
+        return jsonify({"error": "Please enter a valid phone number."}), 400
+
+    existing = Member.query.filter_by(phone=phone).first()
+    if existing:
+        return jsonify({
+            "error": f"This phone number already belongs to member {existing.member_number} ({existing.name}).",
+            "existing": _member_json(existing),
+        }), 409
+
+    member = Member(
+        member_number=next_member_number(),
+        name=f"{first_name} {surname}",
+        phone=phone,
+        points=0,
+        active=True,
+    )
+    db.session.add(member)
+    db.session.commit()
+    return jsonify({"ok": True, "member": _member_json(member)}), 201
 
 
 @staff_bp.route("/api/orders", methods=["POST"])
@@ -158,10 +227,14 @@ def api_create_order():
     member = None
     if data.get("member_id"):
         member = Member.query.get(data.get("member_id"))
+        if not member or not member.active:
+            return jsonify({"error": "That member account is not active."}), 400
 
     payment_method = data.get("payment_method")
-    if payment_method not in ("Card", "Cash", "Member Card"):
+    if payment_method not in PAYMENT_METHODS:
         return jsonify({"error": "Please choose a payment method."}), 400
+    if payment_method == "Member Points" and not member:
+        return jsonify({"error": "Select a member to pay with points."}), 400
 
     order_items = []
     total = Decimal("0.00")
@@ -226,8 +299,18 @@ def api_create_order():
     amount_received = None
     change_due = None
     payment_status = "Pending"
+    points_earned = 0
+    points_redeemed = 0
 
-    if payment_method == "Cash":
+    if payment_method == "Member Points":
+        points_redeemed = points_needed_for(total)
+        if member.points < points_redeemed:
+            return jsonify({
+                "error": f"Not enough points: this order needs {points_redeemed} points "
+                         f"and the member has {member.points}."
+            }), 400
+        payment_status = "Paid (Points)"
+    elif payment_method == "Cash":
         try:
             amount_received = Decimal(str(data.get("amount_received", "0")))
         except Exception:
@@ -237,10 +320,14 @@ def api_create_order():
         change_due = amount_received - total
         payment_status = "Paid"
     else:
-        # Card / Member Card — demo mode uses a clearly labelled simulated payment
+        # Card — demo mode uses a clearly labelled simulated payment
         if not data.get("payment_confirmed"):
             return jsonify({"error": "Please confirm the card payment before placing the order."}), 400
         payment_status = "Paid (Simulated)"
+
+    # Members earn points on every order they pay for with money (not with points)
+    if member and payment_method != "Member Points":
+        points_earned = points_earned_for(total)
 
     order = Order(
         order_number=next_order_number(),
@@ -256,9 +343,21 @@ def api_create_order():
         total=total,
         amount_received=amount_received,
         change_due=change_due,
+        points_earned=points_earned,
+        points_redeemed=points_redeemed,
     )
     order.items = order_items
+    if member:
+        member.points = (member.points or 0) + points_earned - points_redeemed
     db.session.add(order)
     db.session.commit()
 
-    return jsonify({"ok": True, "order_id": order.id, "order_number": order.order_number, "total": _decimal_to_float(total)})
+    return jsonify({
+        "ok": True,
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "total": _decimal_to_float(total),
+        "points_earned": points_earned,
+        "points_redeemed": points_redeemed,
+        "member_points": member.points if member else None,
+    })
