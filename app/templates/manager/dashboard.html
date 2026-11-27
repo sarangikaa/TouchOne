@@ -35,6 +35,49 @@
   </div>
 </div>
 
+<div class="section-title flex-between">
+  <h2>Current Orders</h2>
+  <a href="{{ url_for('manager.orders', status='Current') }}" class="btn btn-sm btn-outline">View all orders</a>
+</div>
+<div class="card">
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>Order #</th><th>Taken by</th><th>Time</th><th>Location</th><th>Table</th><th>Status</th><th class="num">Total</th></tr></thead>
+      <tbody>
+        {% for order in current_orders %}
+        <tr class="clickable" onclick="window.location='{{ url_for('manager.order_detail', order_id=order.id) }}'">
+          <td class="mono">{{ order.order_number }}</td>
+          <td>{{ order.staff.name if order.staff else '—' }}</td>
+          <td>{{ order.created_at.strftime('%d %b, %H:%M') }}</td>
+          <td>{{ order.location.name }}</td>
+          <td>{{ order.table_number }}</td>
+          <td><span class="badge badge-{{ order.order_status|lower }}">{{ order.order_status }}</span></td>
+          <td class="num">£{{ '%.2f'|format(order.total) }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-muted text-center">No orders in progress right now.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="section-title"><h2>Sales by Staff Today</h2></div>
+<div class="card">
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>Staff</th><th class="num">Orders</th><th class="num">Total</th></tr></thead>
+      <tbody>
+        {% for name, data in staff_totals %}
+        <tr><td>{{ name }}</td><td class="num">{{ data.orders }}</td><td class="num">£{{ '%.2f'|format(data.total) }}</td></tr>
+        {% else %}
+        <tr><td colspan="3" class="text-muted text-center">No sales yet today.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <div class="section-title"><h2>Sales by Location</h2></div>
 <div class="card">
   <div class="table-wrap">
