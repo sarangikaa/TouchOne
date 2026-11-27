@@ -32,6 +32,9 @@
   window.ORDERS_LIST_URL = "{{ url_for('staff.dashboard') }}";
   window.MENU_API_URL = "{{ url_for('staff.api_menu') }}";
   window.MEMBERS_SEARCH_URL = "{{ url_for('staff.api_members_search') }}";
+  window.CREATE_MEMBER_URL = "{{ url_for('staff.api_create_member') }}";
+  window.POINTS_PER_POUND = {{ points_per_pound }};
+  window.POINT_VALUE = {{ point_value }};
   window.CREATE_ORDER_URL = "{{ url_for('staff.api_create_order') }}";
   window.RECEIPT_URL_TEMPLATE = "{{ url_for('staff.order_receipt', order_id=0) }}"; // "0" gets swapped for the real order id
 </script>
