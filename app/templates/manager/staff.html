@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Staff — TouchOne{% endblock %}
+{% set active_nav = 'staff' %}
+{% block nav_items %}{% include 'manager/_nav.html' %}{% endblock %}
+{% block mobile_nav_items %}{% include 'manager/_mobile_nav.html' %}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <div class="eyebrow">Staff Management</div>
+    <h1>Staff</h1>
+  </div>
+  <button class="btn btn-accent" onclick="document.getElementById('create-staff-card').scrollIntoView({behavior:'smooth'})">+ Add Staff</button>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Name</th><th>Username</th><th>Role</th><th>Status</th>
+          <th class="num">Current Orders</th><th class="num">Orders Today</th><th class="num">Sales Today</th><th class="num">All Orders</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        {% set u = row.user %}
+        <tr>
+          <td>{{ u.name }}</td>
+          <td class="mono">{{ u.username }}</td>
+          <td>{{ 'Manager' if u.role == 'manager' else 'Staff' }}</td>
+          <td><span class="badge {{ 'badge-confirmed' if u.active else 'badge-cancelled' }}">{{ 'Active' if u.active else 'Disabled' }}</span></td>
+          <td class="num">{{ row.current_orders }}</td>
+          <td class="num">{{ row.today_orders }}</td>
+          <td class="num">£{{ '%.2f'|format(row.today_sales) }}</td>
+          <td class="num">{{ row.total_orders }}</td>
+          <td>
+            <div class="btn-group">
+              <a href="{{ url_for('manager.orders', status='All', staff=u.id) }}" class="btn btn-sm btn-outline">View Orders</a>
+              {% if u.id != current_user.id %}
+              <button class="btn btn-sm btn-outline" onclick="toggleStaff({{ u.id }})">{{ 'Disable' if u.active else 'Enable' }}</button>
+              {% endif %}
+              <button class="btn btn-sm btn-outline" onclick="showResetForm({{ u.id }})">Reset Password</button>
+            </div>
+            <form id="reset-form-{{ u.id }}" method="POST" action="{{ url_for('manager.staff_reset_password', user_id=u.id) }}" style="display:none; margin-top:8px;">
+              <div style="display:flex; gap:8px;">
+                <input type="password" name="password" placeholder="New password" required minlength="6">
+                <button type="submit" class="btn btn-sm btn-primary">Save</button>
+              </div>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-muted text-center">No staff accounts yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="text-muted" style="font-size:0.82rem; margin-top:12px;">Staff log in on the <strong>Staff</strong> tab of the login page to take orders. Every order records who took it. Disabled accounts can't log in, and their past orders are kept.</p>
+</div>
+
+<div class="card" id="create-staff-card">
+  <h2 class="mt-0" style="font-size:1.05rem;">Add Staff Account</h2>
+  <form method="POST" action="{{ url_for('manager.staff_create') }}">
+    <div class="field-row">
+      <div class="field"><label for="name">Full Name</label><input type="text" id="name" name="name" required></div>
+      <div class="field"><label for="username">Username</label><input type="text" id="username" name="username" required autocomplete="off"></div>
+      <div class="field">
+        <label for="role">Role</label>
+        <select id="role" name="role">
+          <option value="staff" selected>Staff</option>
+          <option value="manager">Manager</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label for="password">Password</label><input type="password" id="password" name="password" required minlength="6" autocomplete="new-password"></div>
+      <div class="field"><label for="confirm_password">Confirm Password</label><input type="password" id="confirm_password" name="confirm_password" required minlength="6" autocomplete="new-password"></div>
+    </div>
+    <button type="submit" class="btn btn-accent">Create Account</button>
+  </form>
+</div>
+
+<script>
+function toggleStaff(id) {
+  fetch(`/manager/staff/${id}/toggle`, {method: "POST"})
+    .then(r => r.json())
+    .then(data => { if (data.ok) window.location.reload(); else alert(data.error); });
+}
+function showResetForm(id) {
+  const form = document.getElementById("reset-form-" + id);
+  form.style.display = form.style.display === "none" ? "block" : "none";
+}
+</script>
+{% endblock %}
