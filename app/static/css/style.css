@@ -1,9 +1,3 @@
-/* ==========================================================================
-   Coffee Shop POS — Design Tokens
-   Palette: warm cream, coffee brown, dark charcoal, soft beige, muted green
-   Type: "Fraunces" (display) + "Work Sans" (body/UI) + "JetBrains Mono" (data)
-   ========================================================================== */
-
 :root {
   --cream: #f5f0e6;
   --beige: #e9e0cd;
@@ -263,7 +257,7 @@ button { font-family: var(--font-body); cursor: pointer; }
 
 label { display: block; font-size: 0.83rem; font-weight: 600; color: var(--text-main); margin-bottom: 6px; }
 
-input[type="text"], input[type="password"], input[type="number"],
+input[type="text"], input[type="password"], input[type="number"], input[type="tel"],
 input[type="date"], input[type="search"], select, textarea {
   width: 100%;
   padding: 11px 13px;
