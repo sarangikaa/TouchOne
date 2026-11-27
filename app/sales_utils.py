@@ -87,6 +87,13 @@ def sales_summary(start, end, exclude_cancelled=True):
         entry["orders"] += 1
         entry["total"] += o.total
 
+    staff_totals = {}
+    for o in orders:
+        staff_name = o.staff.name if o.staff else "Unknown"
+        entry = staff_totals.setdefault(staff_name, {"orders": 0, "total": Decimal("0.00")})
+        entry["orders"] += 1
+        entry["total"] += o.total
+
     product_totals = {}
     for o in orders:
         for item in o.items:
@@ -102,5 +109,6 @@ def sales_summary(start, end, exclude_cancelled=True):
         "items_sold": items_sold,
         "payment_totals": payment_totals,
         "location_totals": location_totals,
+        "staff_totals": staff_totals,
         "product_totals": product_totals,
     }
