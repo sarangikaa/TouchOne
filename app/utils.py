@@ -30,3 +30,36 @@ def next_order_number():
     from app.models import Order
     count = db.session.query(Order).count()
     return f"#{10001 + count}"
+
+
+def next_member_number():
+    """Generate the next member number, e.g. #1004 (one higher than the largest existing)."""
+    import re
+    from app.models import Member
+    highest = 1000
+    for (number,) in Member.query.with_entities(Member.member_number).all():
+        digits = re.sub(r"\D", "", number or "")
+        if digits:
+            highest = max(highest, int(digits))
+    return f"#{highest + 1}"
+
+
+def normalise_phone(raw):
+    """Keep digits and a leading '+', so '+44 7700 900-123' and '+447700900123' match."""
+    raw = (raw or "").strip()
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    return ("+" + digits) if raw.startswith("+") else digits
+
+
+def points_earned_for(total):
+    """Points a member earns for an order total (whole pounds only)."""
+    from decimal import Decimal, ROUND_FLOOR
+    from app.models import POINTS_PER_POUND
+    return int((Decimal(total) * POINTS_PER_POUND).to_integral_value(rounding=ROUND_FLOOR))
+
+
+def points_needed_for(total):
+    """Points required to pay an order total in full (rounded up)."""
+    from decimal import Decimal, ROUND_CEILING
+    from app.models import POINT_VALUE
+    return int((Decimal(total) / POINT_VALUE).to_integral_value(rounding=ROUND_CEILING))
