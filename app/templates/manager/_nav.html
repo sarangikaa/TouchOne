@@ -5,4 +5,5 @@
 <a href="{{ url_for('manager.members') }}" class="{{ 'active' if active_nav == 'members' else '' }}">Members</a>
 <a href="{{ url_for('manager.menu') }}" class="{{ 'active' if active_nav == 'menu' else '' }}">Menu</a>
 <a href="{{ url_for('manager.locations') }}" class="{{ 'active' if active_nav == 'locations' else '' }}">Locations</a>
-<a href="{{ url_for('staff.dashboard') }}" class="{{ 'active' if active_nav == 'staff' else '' }}">Staff Orders</a>
+<a href="{{ url_for('manager.staff_list') }}" class="{{ 'active' if active_nav == 'staff' else '' }}">Staff</a>
+<a href="{{ url_for('staff.new_order') }}">+ Take an Order</a>
