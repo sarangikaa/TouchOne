@@ -16,15 +16,23 @@
   <form method="GET" action="{{ url_for('manager.orders') }}" class="filter-bar">
     <input type="hidden" name="status" value="{{ status_filter }}">
     <div class="field" style="flex:1;">
-      <input type="search" name="q" placeholder="Search order # or member #" value="{{ q }}">
+      <input type="search" name="q" placeholder="Search order #, member # or staff name" value="{{ q }}">
+    </div>
+    <div class="field">
+      <select name="staff" onchange="this.form.submit()">
+        <option value="">All staff</option>
+        {% for u in staff_list %}
+        <option value="{{ u.id }}" {{ 'selected' if staff_filter == u.id else '' }}>{{ u.name }}</option>
+        {% endfor %}
+      </select>
     </div>
     <button type="submit" class="btn btn-primary">Search</button>
   </form>
 </div>
 
 <div class="tab-row">
-  {% for key, text in [('All','All'), ('Pending','Pending'), ('Completed','Completed'), ('Cancelled','Cancelled')] %}
-  <a href="{{ url_for('manager.orders', status=key, q=q) }}" class="{{ 'active' if status_filter == key else '' }}">{{ text }}</a>
+  {% for key, text in [('Current','Current'), ('Completed','Completed'), ('Cancelled','Cancelled'), ('All','All')] %}
+  <a href="{{ url_for('manager.orders', status=key, q=q, staff=staff_filter) }}" class="{{ 'active' if status_filter == key else '' }}">{{ text }}</a>
   {% endfor %}
 </div>
 
@@ -33,7 +41,7 @@
     <table class="data-table">
       <thead>
         <tr>
-          <th>Order #</th><th>Member</th><th>Date/Time</th><th>Location</th><th>Table</th>
+          <th>Order #</th><th>Staff</th><th>Member</th><th>Date/Time</th><th>Location</th><th>Table</th>
           <th>Allergies</th><th>Payment</th><th>Status</th><th class="num">Total</th>
         </tr>
       </thead>
@@ -41,6 +49,7 @@
         {% for order in orders %}
         <tr class="clickable" onclick="window.location='{{ url_for('manager.order_detail', order_id=order.id) }}'">
           <td class="mono">{{ order.order_number }}</td>
+          <td>{{ order.staff.name if order.staff else '—' }}</td>
           <td>{{ order.member.member_number if order.member else '—' }}</td>
           <td>{{ order.created_at.strftime('%d %b %Y, %H:%M') }}</td>
           <td>{{ order.location.name }}</td>
@@ -55,7 +64,7 @@
           <td class="num">£{{ '%.2f'|format(order.total) }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="9" class="text-muted text-center">No orders match your filters.</td></tr>
+        <tr><td colspan="10" class="text-muted text-center">No orders match your filters.</td></tr>
         {% endfor %}
       </tbody>
     </table>
