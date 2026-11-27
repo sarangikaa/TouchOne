@@ -64,6 +64,12 @@
       <div class="receipt-line"><span class="k">Amount Received</span><span class="mono">£{{ '%.2f'|format(order.amount_received) }}</span></div>
       <div class="receipt-line"><span class="k">Change Given</span><span class="mono">£{{ '%.2f'|format(order.change_due) }}</span></div>
       {% endif %}
+      {% if order.points_redeemed %}
+      <div class="receipt-line"><span class="k">Points Used</span><span class="mono">{{ order.points_redeemed }}</span></div>
+      {% endif %}
+      {% if order.points_earned %}
+      <div class="receipt-line"><span class="k">Points Earned</span><span class="mono">+{{ order.points_earned }}</span></div>
+      {% endif %}
       <div class="receipt-line"><span class="k">Placed</span><span>{{ order.created_at.strftime('%d %b %Y, %H:%M') }}</span></div>
     </div>
   </div>
