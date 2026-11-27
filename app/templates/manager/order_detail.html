@@ -51,6 +51,12 @@
     </div>
     <div class="receipt-line"><span class="k">Payment Method</span><span>{{ order.payment_method }}</span></div>
     <div class="receipt-line"><span class="k">Payment Status</span><span>{{ order.payment_status }}</span></div>
+    {% if order.points_redeemed %}
+    <div class="receipt-line"><span class="k">Points Used</span><span class="mono">{{ order.points_redeemed }}</span></div>
+    {% endif %}
+    {% if order.points_earned %}
+    <div class="receipt-line"><span class="k">Points Earned</span><span class="mono">+{{ order.points_earned }}</span></div>
+    {% endif %}
     <div class="receipt-line"><span class="k">Order Status</span><span><span class="badge badge-{{ order.order_status|lower }}">{{ order.order_status }}</span></span></div>
     <div class="receipt-line"><span class="k">Placed</span><span>{{ order.created_at.strftime('%d %b %Y, %H:%M') }}</span></div>
   </div>
