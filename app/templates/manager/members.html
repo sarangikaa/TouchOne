@@ -39,14 +39,7 @@
             <div class="btn-group">
               <a href="{{ url_for('manager.member_orders', member_id=member.id) }}" class="btn btn-sm btn-outline">View Orders</a>
               <button class="btn btn-sm btn-outline" onclick="toggleMember({{ member.id }}, this)">{{ 'Disable' if member.active else 'Enable' }}</button>
-              <button class="btn btn-sm btn-outline" onclick="showResetForm({{ member.id }})">Reset Password</button>
             </div>
-            <form id="reset-form-{{ member.id }}" method="POST" action="{{ url_for('manager.member_reset_password', member_id=member.id) }}" style="display:none; margin-top:8px;">
-              <div style="display:flex; gap:8px;">
-                <input type="password" name="password" placeholder="New password" required minlength="6">
-                <button type="submit" class="btn btn-sm btn-primary">Save</button>
-              </div>
-            </form>
           </td>
         </tr>
         {% else %}
@@ -59,18 +52,12 @@
 
 <div class="card" id="create-member-card">
   <h2 class="mt-0" style="font-size:1.05rem;">Create New Member</h2>
+  <p class="text-muted" style="font-size:0.85rem; margin-top:0;">Members are loyalty customers. They don't log in — they get a member number automatically, collect points on every order, and can pay with points. Staff can also create members while taking an order.</p>
   <form method="POST" action="{{ url_for('manager.member_create') }}">
     <div class="field-row">
-      <div class="field"><label for="member_number">Member Number</label><input type="text" id="member_number" name="member_number" placeholder="Leave blank to auto-assign"></div>
-      <div class="field"><label for="name">Member Name</label><input type="text" id="name" name="name" required></div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label for="phone">Phone Number</label><input type="tel" id="phone" name="phone"></div>
-      <div class="field"><label for="username">Username</label><input type="text" id="username" name="username" required></div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label for="password">Password</label><input type="password" id="password" name="password" required minlength="6"></div>
-      <div class="field"><label for="confirm_password">Confirm Password</label><input type="password" id="confirm_password" name="confirm_password" required minlength="6"></div>
+      <div class="field"><label for="first_name">Name</label><input type="text" id="first_name" name="first_name" required></div>
+      <div class="field"><label for="surname">Surname</label><input type="text" id="surname" name="surname" required></div>
+      <div class="field"><label for="phone">Phone Number</label><input type="tel" id="phone" name="phone" required></div>
     </div>
     <button type="submit" class="btn btn-accent">Create Member</button>
   </form>
@@ -81,10 +68,6 @@ function toggleMember(id, btn) {
   fetch(`/manager/members/${id}/toggle`, {method: "POST"}).then(r => r.json()).then(data => {
     if (data.ok) window.location.reload();
   });
-}
-function showResetForm(id) {
-  const form = document.getElementById("reset-form-" + id);
-  form.style.display = form.style.display === "none" ? "block" : "none";
 }
 </script>
 {% endblock %}
