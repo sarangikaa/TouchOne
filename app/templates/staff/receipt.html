@@ -83,6 +83,15 @@
     {% else %}
     <div class="row"><span>Status</span><span>{{ order.payment_status }}</span></div>
     {% endif %}
+    {% if order.points_redeemed %}
+    <div class="row"><span>Points used</span><span>{{ order.points_redeemed }}</span></div>
+    {% endif %}
+    {% if order.points_earned %}
+    <div class="row"><span>Points earned</span><span>+{{ order.points_earned }}</span></div>
+    {% endif %}
+    {% if order.member %}
+    <div class="row"><span>Points balance</span><span>{{ order.member.points }}</span></div>
+    {% endif %}
   </div>
 
   {% if order.allergy_status and order.allergen_list() %}
