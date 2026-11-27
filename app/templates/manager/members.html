@@ -16,7 +16,7 @@
 <div class="card">
   <form method="GET" action="{{ url_for('manager.members') }}" class="filter-bar">
     <div class="field" style="flex:1;">
-      <input type="search" name="q" placeholder="Search Member Number or Name" value="{{ q }}">
+      <input type="search" name="q" placeholder="Search Member Number, Name or Phone" value="{{ q }}">
     </div>
     <button type="submit" class="btn btn-primary">Search</button>
   </form>
@@ -25,12 +25,14 @@
 <div class="card">
   <div class="table-wrap">
     <table class="data-table">
-      <thead><tr><th>Member #</th><th>Name</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Member #</th><th>Name</th><th>Phone</th><th>Points</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         {% for member in members %}
         <tr>
           <td class="mono">{{ member.member_number }}</td>
           <td>{{ member.name }}</td>
+          <td>{{ member.phone or '—' }}</td>
+          <td class="mono">{{ member.points or 0 }}</td>
           <td>{{ member.joined_at.strftime('%d %b %Y') }}</td>
           <td><span class="badge {{ 'badge-confirmed' if member.active else 'badge-cancelled' }}">{{ 'Active' if member.active else 'Disabled' }}</span></td>
           <td>
@@ -48,7 +50,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="5" class="text-muted text-center">No members found.</td></tr>
+        <tr><td colspan="7" class="text-muted text-center">No members found.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -59,10 +61,11 @@
   <h2 class="mt-0" style="font-size:1.05rem;">Create New Member</h2>
   <form method="POST" action="{{ url_for('manager.member_create') }}">
     <div class="field-row">
-      <div class="field"><label for="member_number">Member Number</label><input type="text" id="member_number" name="member_number" placeholder="#1002" required></div>
+      <div class="field"><label for="member_number">Member Number</label><input type="text" id="member_number" name="member_number" placeholder="Leave blank to auto-assign"></div>
       <div class="field"><label for="name">Member Name</label><input type="text" id="name" name="name" required></div>
     </div>
     <div class="field-row">
+      <div class="field"><label for="phone">Phone Number</label><input type="tel" id="phone" name="phone"></div>
       <div class="field"><label for="username">Username</label><input type="text" id="username" name="username" required></div>
     </div>
     <div class="field-row">
